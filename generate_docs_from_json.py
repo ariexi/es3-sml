@@ -1,220 +1,199 @@
 #!/usr/bin/env python3
 """
-ES³ SML Framework — JSON to MkDocs Documentation Generator
+ES³ SML Framework — MkDocs Generator from Master JSON (v2)
 ==========================================================
-Generates high-quality, standardized Markdown documentation pages for MkDocs
-directly from the master Assessment Tool JSON (sml_data.json).
+Generates/synchronizes MkDocs documentation pages (docs/dimensions/*.md)
+directly from the master `sml_data.json` file.
 
-Features:
-- Robust schema parser supporting both list- and dict-based JSON structures.
-- Generates clean, Material-for-MkDocs compatible Markdown with proper tables and callouts.
-- Supports CI validation mode (--check) to ensure docs stay in sync with JSON.
+Matches the exact schema:
+- Root: { "SML <N> <Title>": { "dimension_title", "dimension_desc", "objectives": [ ... ] } }
+- Objectives: { "id", "title", "sovereignty_contribution", "controls": [ ... ] }
+- Controls: { "id", "desc", "control_scope", "service_type", "question", "requirements": { ... } }
 """
 
-import os
 import sys
+import os
+import re
 import json
 import argparse
 from pathlib import Path
 
-DIMENSION_SLUGS = {
-    "SML 1": "sml1-strategic",
-    "SML 2": "sml2-legal",
-    "SML 3": "sml3-data",
-    "SML 4": "sml4-operational",
-    "SML 5": "sml5-supply-chain",
-    "SML 6": "sml6-technology",
-    "SML 7": "sml7-security",
-    "SML 8": "sml8-environmental",
-    "SML 9": "sml9-ai",
+DIMENSION_SLUG_MAP = {
+    "SML 1": "sml1-strategic.md",
+    "SML 2": "sml2-legal.md",
+    "SML 3": "sml3-data.md",
+    "SML 4": "sml4-operational.md",
+    "SML 5": "sml5-supply-chain.md",
+    "SML 6": "sml6-technology.md",
+    "SML 7": "sml7-security.md",
+    "SML 8": "sml8-environmental.md",
+    "SML 9": "sml9-ai.md",
 }
 
-def normalize_collection(item_or_coll):
-    """Converts either a list of dicts or a dict-of-dicts into a uniform list of dicts."""
-    if isinstance(item_or_coll, list):
-        return item_or_coll
-    elif isinstance(item_or_coll, dict):
-        result = []
-        for key, val in item_or_coll.items():
-            if isinstance(val, dict):
-                entry = dict(val)
-                if "id" not in entry and "code" not in entry:
-                    entry["id"] = key
-                result.append(entry)
-            else:
-                result.append({"id": key, "value": val})
-        return result
-    return []
+def parse_control_id_and_level(raw_id: str):
+    """
+    Extracts the clean Control ID and Implementation Level.
+    Example: 'SML 1.CO 1.C 1 (Governance and Operations)'
+             -> ('SML 1.CO 1.C 1', 'Governance & Operations')
+    """
+    raw_id = raw_id.strip()
+    match = re.search(r'^(.*?)\s*\((.*?)\)$', raw_id)
+    if match:
+        cid = match.group(1).strip()
+        lvl = match.group(2).strip().replace(" and ", " & ")
+        return cid, lvl
+    return raw_id, "N/A"
 
-def extract_dimensions(catalog: dict):
-    """Extracts dimensions from diverse JSON structures."""
-    raw_dims = catalog.get("dimensions", [])
-    dims = normalize_collection(raw_dims)
+def format_requirements_badges(requirements: dict) -> str:
+    """Formats maturity level indicators (Initial, Managed, Advanced, Future-Proof)."""
+    if not isinstance(requirements, dict):
+        return ""
     
-    parsed_dims = []
-    for dim in dims:
-        dim_id = dim.get("id") or dim.get("code") or ""
-        dim_name = dim.get("name") or dim.get("title") or dim_id
-        dim_desc = dim.get("description") or dim.get("desc") or ""
-        
-        raw_cos = dim.get("control_objectives") or dim.get("objectives") or []
-        cos = normalize_collection(raw_cos)
-        
-        parsed_cos = []
-        for co in cos:
-            co_id = co.get("id") or co.get("code") or ""
-            co_title = co.get("title") or co.get("name") or co_id
-            co_obj = co.get("objective") or co.get("target_state") or co.get("description") or ""
-            
-            raw_ctrls = co.get("controls") or []
-            ctrls = normalize_collection(raw_ctrls)
-            
-            parsed_ctrls = []
-            for ctrl in ctrls:
-                c_id = ctrl.get("id") or ctrl.get("code") or ""
-                level = ctrl.get("level") or ctrl.get("implementation_level") or "Governance & Operations"
-                scope = ctrl.get("scope") or ctrl.get("control_scope") or "Service Provider"
-                service_type = ctrl.get("service_type") or ctrl.get("service_types") or "All"
-                desc = ctrl.get("description") or ctrl.get("text") or ctrl.get("desc") or ""
-                question = ctrl.get("question") or ctrl.get("audit_question") or ""
-                q_id = ctrl.get("question_id") or ctrl.get("q_id") or (f"{c_id}.Q 1" if c_id else "Q 1")
-                
-                parsed_ctrls.append({
-                    "id": c_id,
-                    "level": level,
-                    "scope": scope,
-                    "service_type": service_type,
-                    "description": desc,
-                    "question": question,
-                    "question_id": q_id
-                })
-                
-            parsed_cos.append({
-                "id": co_id,
-                "title": co_title,
-                "objective": co_obj,
-                "controls": parsed_ctrls
-            })
-            
-        parsed_dims.append({
-            "id": dim_id,
-            "name": dim_name,
-            "description": dim_desc,
-            "control_objectives": parsed_cos
-        })
-        
-    return parsed_dims
-
-def render_dimension_markdown(dim: dict) -> str:
-    """Renders a single dimension into clean MkDocs-compatible Markdown."""
-    lines = []
-    lines.append(f"# {dim['name']}\n")
-    if dim.get("description"):
-        lines.append(f"*{dim['description']}*\n")
-    lines.append("---\n")
-    lines.append("## Control Objectives & Controls\n")
-    
-    for co in dim.get("control_objectives", []):
-        lines.append(f"### {co['id']}: {co['title']}")
-        if co.get("objective"):
-            lines.append(f"**Target State:** {co['objective']}\n")
-        else:
-            lines.append("")
-            
-        for ctrl in co.get("controls", []):
-            meta = f"| Level: *{ctrl['level']}* | Scope: *{ctrl['scope']}* | Service Type: *{ctrl['service_type']}*"
-            lines.append(f"* **{ctrl['id']}** {meta}  ")
-            lines.append(f"  {ctrl['description']}  ")
-            q_label = ctrl['question_id']
-            if not q_label.startswith(ctrl['id']):
-                q_label = f"{ctrl['id']}.Q 1"
-            lines.append(f"  * **Question {q_label}:** {ctrl['question']}\n")
-            
-        lines.append("---\n")
-        
-    return "\n".join(lines).strip() + "\n"
-
-def main():
-    parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files from Assessment Tool JSON.")
-    parser.add_argument("--input", "-i", default=None, help="Path to input sml_data.json")
-    parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory (default: docs)")
-    parser.add_argument("--check", action="store_true", help="Check mode: verifies if docs are in sync without writing")
-    args = parser.parse_args()
-
-    # Candidate JSON paths if not explicitly provided
-    candidate_paths = [
-        args.input,
-        "docs/sml_data.json"
+    levels = [
+        ("initial", "Initial"),
+        ("managed", "Managed"),
+        ("advanced", "Advanced"),
+        ("future_proof", "Future-Proof")
     ]
-    input_file = None
-    for p in candidate_paths:
-        if p and os.path.exists(p):
-            input_file = Path(p)
-            break
-            
-    if not input_file:
-        searched = [p for p in candidate_paths if p]
-        print(f"❌ Error: Master JSON file not found. Looked in: {', '.join(searched)}")
-        print("Please provide the path using: python generate_docs_from_json.py --input <path_to_json>")
-        sys.exit(1)
+    
+    active_levels = [label for key, label in levels if requirements.get(key)]
+    if not active_levels:
+        return ""
+    
+    badges = " ".join([f"`{lvl}`" for lvl in active_levels])
+    return f"**Maturity Levels:** {badges}"
 
-    print(f"📖 Reading Master JSON from: {input_file}...")
-    try:
-        with open(input_file, "r", encoding="utf-8") as f:
-            catalog = json.load(f)
-    except Exception as e:
-        print(f"❌ Error parsing JSON file '{input_file}': {e}")
-        sys.exit(1)
+def format_objective_header(obj_id: str, obj_title: str):
+    """
+    Cleans up objective title and separates Target State if included.
+    Example: 'Governance Authority (SML 1.CO 1) - To ensure that...'
+             -> ('Governance Authority', 'To ensure that...')
+    """
+    cleaned = obj_title.strip()
+    # Remove redundant (SML X.CO Y) if present
+    if obj_id:
+        cleaned = re.sub(r'\s*\(' + re.escape(obj_id) + r'\)', '', cleaned).strip()
+    
+    if " - " in cleaned:
+        parts = cleaned.split(" - ", 1)
+        name = parts[0].strip()
+        target_state = parts[1].strip()
+        return name, target_state
+    return cleaned, ""
 
-    dims = extract_dimensions(catalog)
-    if not dims:
-        print("❌ Error: No dimensions found in the JSON file.")
-        sys.exit(1)
+def generate_docs(json_path: Path, docs_dir: Path, check_only: bool = False) -> bool:
+    if not json_path.exists():
+        print(f"❌ Error: Master JSON file not found at: {json_path}")
+        return False
 
-    print(f"✓ Found {len(dims)} dimensions.")
-    docs_dir = Path(args.docs_dir)
-    dim_out_dir = docs_dir / "dimensions"
-    dim_out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"📖 Reading Master JSON from: {json_path}...")
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    target_dir = docs_dir / "dimensions"
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     all_synced = True
-    for dim in dims:
-        dim_id = dim["id"]
-        # Match ID to slug
-        matched_slug = None
-        for key, slug in DIMENSION_SLUGS.items():
-            if dim_id.upper().startswith(key.upper()) or key.upper() in dim_id.upper():
-                matched_slug = slug
-                break
-        if not matched_slug:
-            matched_slug = dim_id.lower().replace(" ", "-").replace("_", "-")
-            
-        target_path = dim_out_dir / f"{matched_slug}.md"
-        rendered_content = render_dimension_markdown(dim)
 
-        if args.check:
-            if not target_path.exists():
-                print(f"❌ Out of sync: {target_path} does not exist.")
+    for dim_key, dim_data in data.items():
+        if not isinstance(dim_data, dict):
+            continue
+
+        # Extract dimension identifier (e.g. 'SML 1')
+        dim_prefix_match = re.search(r'(SML\s*\d)', dim_key, re.IGNORECASE)
+        prefix = dim_prefix_match.group(1).upper() if dim_prefix_match else dim_key[:5].strip()
+        filename = DIMENSION_SLUG_MAP.get(prefix, f"{prefix.lower().replace(' ', '-')}.md")
+        target_file = target_dir / filename
+
+        dim_desc = dim_data.get("dimension_desc", "")
+
+        md = []
+        md.append(f"# {dim_key}")
+        md.append("")
+        if dim_desc:
+            md.append(f"*{dim_desc}*")
+            md.append("")
+        md.append("---")
+        md.append("")
+        md.append("## Control Objectives & Controls")
+        md.append("")
+
+        for obj in dim_data.get("objectives", []):
+            obj_id = obj.get("id", "").strip()
+            obj_title = obj.get("title", "").strip()
+            sovereignty_contrib = obj.get("sovereignty_contribution", "").strip()
+
+            obj_name, target_state = format_objective_header(obj_id, obj_title)
+
+            if target_state:
+                md.append(f"### {obj_id}: {obj_name}")
+                md.append(f"**Target State:** {target_state}\n")
+            else:
+                md.append(f"### {obj_id}: {obj_name}\n")
+
+            if sovereignty_contrib:
+                md.append(f"> **Sovereignty Contribution:** {sovereignty_contrib}\n")
+
+            for ctrl in obj.get("controls", []):
+                raw_cid = ctrl.get("id", "")
+                cid, level = parse_control_id_and_level(raw_cid)
+                scope = ctrl.get("control_scope", "All")
+                stype = ctrl.get("service_type", "All")
+                desc = ctrl.get("desc", "").strip()
+                question = ctrl.get("question", "").strip()
+                requirements = ctrl.get("requirements", {})
+
+                md.append(f"* **{cid}** | Level: *{level}* | Scope: *{scope}* | Service Type: *{stype}*  ")
+                md.append(f"  {desc}  ")
+                md.append(f"  * **Audit Question:** {question}")
+                
+                req_badges = format_requirements_badges(requirements)
+                if req_badges:
+                    md.append(f"  * {req_badges}")
+                md.append("")
+
+            md.append("---")
+            md.append("")
+
+        rendered_content = "\n".join(md)
+
+        if check_only:
+            if not target_file.exists():
+                print(f"❌ Missing file: {target_file}")
+                all_synced = False
+            elif target_file.read_text(encoding="utf-8") != rendered_content:
+                print(f"❌ Out of sync: {target_file}")
                 all_synced = False
             else:
-                existing = target_path.read_text(encoding="utf-8")
-                if existing != rendered_content:
-                    print(f"❌ Out of sync: {target_path} differs from JSON master.")
-                    all_synced = False
-                else:
-                    print(f"✅ In sync: {target_path}")
+                print(f"✅ In sync: {target_file}")
         else:
-            target_path.write_text(rendered_content, encoding="utf-8")
-            print(f"  ✓ Rendered: {target_path}")
+            target_file.write_text(rendered_content, encoding="utf-8")
+            print(f"  ✓ Rendered: {target_file}")
 
-    if args.check:
+    if check_only:
         if all_synced:
-            print("🎉 Success: All MkDocs dimension pages are perfectly in sync with the JSON master!")
-            sys.exit(0)
-        else:
-            print("❌ Failure: MkDocs dimension pages are out of sync. Run 'python generate_docs_from_json.py' to update.")
-            sys.exit(1)
+            print("🎉 Success: All MkDocs dimension pages match the master JSON!")
+        return all_synced
     else:
-        print(f"\n✨ Generation Complete! {len(dims)} dimension pages created/updated in '{dim_out_dir}'.")
+        print(f"\n✨ Generation Complete! All dimension pages synchronized from JSON in '{target_dir}'.")
+        return True
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files from ES3 sml_data.json.")
+    parser.add_argument("--input", "-i", default="data/sml_data.json", help="Path to input master sml_data.json")
+    parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory")
+    parser.add_argument("--check", action="store_true", help="Check synchronization without writing files")
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        if Path("sml_data.json").exists():
+            input_path = Path("sml_data.json")
+
+    docs_path = Path(args.docs_dir)
+    success = generate_docs(input_path, docs_path, check_only=args.check)
+    if not success:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
