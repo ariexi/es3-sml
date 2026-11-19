@@ -580,7 +580,7 @@
                     },
                     {
                         "id": "SML 3.CO 2.C 2 (Governance and Operations)",
-                        "desc": "Processes exist that callow customers to retrieve and export data including all relevant datasets required for continued use.",
+                        "desc": "Processes exist that allow customers to retrieve and export data including all relevant datasets required for continued use.",
                         "control_scope": "Service Provider",
                         "service_type": "All",
                         "question": "Are there defined and implemented processes ensuring that customer data can be retrieved and exported in a complete and consistent manner?",
@@ -750,7 +750,7 @@
                     },
                     {
                         "id": "SML 3.CO 4.C 5 (Technical)",
-                        "desc": "The underlying service supports mechanisms for ensure data integrity and preventing unauthorized modification or deletion.",
+                        "desc": "The underlying service supports mechanisms for ensuring data integrity and preventing unauthorized modification or deletion.",
                         "control_scope": "Underlying Service",
                         "service_type": "IaaS, PaaS",
                         "question": "Does the underlying service support mechanisms to ensure data integrity and prevent unauthorized modification or deletion?",
@@ -2249,7 +2249,7 @@
                     },
                     {
                         "id": "SML 9.CO 5.C 2 (Governance and Operations)",
-                        "desc": "AI models and changes are validated before deployment. Validation data is documentated and updated regularly.",
+                        "desc": "AI models and changes are validated before deployment. Validation data is documented and updated regularly.",
                         "control_scope": "Service Provider",
                         "service_type": "AI Service",
                         "question": "Are AI models validated before deployment and are validation procedures and results documented?",

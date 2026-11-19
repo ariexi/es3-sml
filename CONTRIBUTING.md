@@ -28,7 +28,7 @@ If you have questions about one of the issues, please comment on them, and one o
 >
 > Source of truth is ALWAYS the file [`sml_data.json`](./docs/sml_data.json).
 >
-> All documentaion files will be generated from that.
+> The dimension pages and overview are generated from that.
 
 ### 1. Reporting Bugs
 
