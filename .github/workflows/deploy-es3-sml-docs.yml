@@ -6,6 +6,13 @@ on:
       - main # Generate DOcumaentation from main
       - UpdateDocs # Only for Testing
 
+  workflow_dispatch:
+    inputs:
+      clean_build:
+        required: false
+        default: false
+        type: boolean
+
 # Set permissions for deployment on GitHub Pages
 permissions:
   contents: read
