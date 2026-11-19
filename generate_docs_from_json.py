@@ -12,203 +12,202 @@
  *   Andy Riexinger - initial contribution
  ******************************************************************************* -->
 """
-
 #!/usr/bin/env python3
 """
-ES³ SML Framework — MkDocs Generator from Master JSON (v2)
-==========================================================
-Generates/synchronizes MkDocs documentation pages (docs/dimensions/*.md)
-directly from the master `sml_data.json` file.
-
-Matches the exact schema:
-- Root: { "SML <N> <Title>": { "dimension_title", "dimension_desc", "objectives": [ ... ] } }
-- Objectives: { "id", "title", "sovereignty_contribution", "controls": [ ... ] }
-- Controls: { "id", "desc", "control_scope", "service_type", "question", "requirements": { ... } }
+ES³ SML Framework — MkDocs Generator from Master JSON (v4 Edition)
+==================================================================
+Generates MkDocs documentation pages from the master JSON file (`sml_data.json`).
+Features:
+  - Exact formatting matching SDC specifications
+  - Automatic generation of the summary mapping table at the end of each dimension
+    ("Mapping of the Objectives to the corresponding Sovereignty Maturity Level")
+    derived from the `requirements` field of each control.
 """
 
 import sys
 import os
-import re
 import json
+import re
 import argparse
 from pathlib import Path
 
-DIMENSION_SLUG_MAP = {
-    "SML 1": "sml1-strategic.md",
-    "SML 2": "sml2-legal.md",
-    "SML 3": "sml3-data.md",
-    "SML 4": "sml4-operational.md",
-    "SML 5": "sml5-supply-chain.md",
-    "SML 6": "sml6-technology.md",
-    "SML 7": "sml7-security.md",
-    "SML 8": "sml8-environmental.md",
-    "SML 9": "sml9-ai.md",
+DIMENSION_SLUGS = {
+    "SML 1": "sml1-strategic",
+    "SML 2": "sml2-legal",
+    "SML 3": "sml3-data",
+    "SML 4": "sml4-operational",
+    "SML 5": "sml5-supply-chain",
+    "SML 6": "sml6-technology",
+    "SML 7": "sml7-security",
+    "SML 8": "sml8-environmental",
+    "SML 9": "sml9-ai",
 }
 
-def parse_control_id_and_level(raw_id: str):
-    """
-    Extracts the clean Control ID and Implementation Level.
-    Example: 'SML 1.CO 1.C 1 (Governance and Operations)'
-             -> ('SML 1.CO 1.C 1', 'Governance & Operations')
-    """
-    raw_id = raw_id.strip()
-    match = re.search(r'^(.*?)\s*\((.*?)\)$', raw_id)
-    if match:
-        cid = match.group(1).strip()
-        lvl = match.group(2).strip().replace(" and ", " & ")
-        return cid, lvl
-    return raw_id, "N/A"
+def clean_id(raw_id: str) -> str:
+    m = re.match(r"^(SML\s*\d+\.CO\s*\d+(\.C\s*\d+)?)", raw_id.strip())
+    if m:
+        return m.group(1).strip()
+    return raw_id.split("(")[0].strip()
 
-def format_requirements_badges(requirements: dict) -> str:
-    """Formats maturity level indicators (Initial, Managed, Advanced, Future-Proof)."""
-    if not isinstance(requirements, dict):
-        return ""
-    
-    levels = [
-        ("initial", "Initial"),
-        ("managed", "Managed"),
-        ("advanced", "Advanced"),
-        ("future_proof", "Future-Proof")
-    ]
-    
-    active_levels = [label for key, label in levels if requirements.get(key)]
-    if not active_levels:
-        return ""
-    
-    badges = " ".join([f"`{lvl}`" for lvl in active_levels])
-    return f"**Maturity Levels:** {badges}"
+def extract_level_from_id(raw_id: str) -> str:
+    m = re.search(r"\(([^)]+)\)", raw_id)
+    if m:
+        return m.group(1).replace("&", "&").strip()
+    return "Governance & Operations"
 
-def format_objective_header(obj_id: str, obj_title: str):
-    """
-    Cleans up objective title and separates Target State if included.
-    Example: 'Governance Authority (SML 1.CO 1) - To ensure that...'
-             -> ('Governance Authority', 'To ensure that...')
-    """
-    cleaned = obj_title.strip()
-    # Remove redundant (SML X.CO Y) if present
-    if obj_id:
-        cleaned = re.sub(r'\s*\(' + re.escape(obj_id) + r'\)', '', cleaned).strip()
-    
+def clean_co_title(raw_title: str) -> tuple[str, str]:
+    cleaned = re.sub(r"\(SML\s*\d+\.CO\s*\d+\)", "", raw_title).strip()
     if " - " in cleaned:
         parts = cleaned.split(" - ", 1)
-        name = parts[0].strip()
-        target_state = parts[1].strip()
-        return name, target_state
+        return parts[0].strip(), parts[1].strip()
+    elif ":" in cleaned:
+        parts = cleaned.split(":", 1)
+        return parts[0].strip(), parts[1].strip()
     return cleaned, ""
 
-def generate_docs(json_path: Path, docs_dir: Path, check_only: bool = False) -> bool:
+def generate_markdown(catalog_data: dict, docs_dir: Path, check_only: bool = False) -> bool:
+    dim_dir = docs_dir / "dimensions"
+    dim_dir.mkdir(parents=True, exist_ok=True)
+    all_synced = True
+
+    items = catalog_data.items() if isinstance(catalog_data, dict) else enumerate(catalog_data)
+
+    for key, dim_info in items:
+        if not isinstance(dim_info, dict):
+            continue
+
+        raw_name = str(key)
+        m = re.match(r"^(SML\s*\d+)", raw_name)
+        dim_prefix = m.group(1) if m else raw_name
+        slug = DIMENSION_SLUGS.get(dim_prefix, dim_prefix.lower().replace(" ", "-"))
+        target_file = dim_dir / f"{slug}.md"
+
+        dim_title = dim_info.get("dimension_title", dim_info.get("name", raw_name))
+        dim_desc = dim_info.get("dimension_desc", dim_info.get("description", ""))
+
+        if not dim_title.startswith("SML"):
+            h1_title = f"{dim_prefix} — {dim_title}"
+        else:
+            h1_title = dim_title
+
+        md = []
+        md.append(f"# {h1_title}\n")
+        if dim_desc:
+            md.append(f"*{dim_desc}*\n")
+        md.append("---\n")
+
+        objectives = dim_info.get("objectives", dim_info.get("control_objectives", []))
+        controls_for_table = []
+
+        for obj in objectives:
+            co_id = obj.get("id", "").strip()
+            co_raw_title = obj.get("title", co_id)
+            short_name, extracted_target = clean_co_title(co_raw_title)
+
+            target_state = obj.get("objective", obj.get("target_state", extracted_target))
+            sovereignty_contribution = obj.get("sovereignty_contribution", "")
+
+            md.append(f"## {co_id} {short_name}\n")
+            if target_state:
+                md.append(f"**Objective:** {target_state}  ")
+            if sovereignty_contribution:
+                md.append(f"*Sovereignty Contribution:* {sovereignty_contribution}\n")
+            else:
+                md.append("\n")
+
+            controls = obj.get("controls", [])
+            for ctrl in controls:
+                c_raw_id = ctrl.get("id", "").strip()
+                c_id = clean_id(c_raw_id)
+                level = ctrl.get("level", extract_level_from_id(c_raw_id))
+                scope = ctrl.get("control_scope", ctrl.get("scope", "Service Provider"))
+                service_type = ctrl.get("service_type", "All")
+                desc = ctrl.get("desc", ctrl.get("description", ""))
+                question = ctrl.get("question", "")
+
+                q_id = ctrl.get("question_id", f"{c_id}.Q 1")
+                if not q_id.startswith(c_id):
+                    q_id = f"{c_id}.Q 1"
+
+                md.append(f"### {c_id} ({level})\n")
+                md.append(f"* **Scope:** {scope}")
+                md.append(f"* **Service Type:** {service_type}")
+                if desc:
+                    md.append(f"* {desc}")
+                if question:
+                    md.append(f"* **{q_id}:** {question}\n")
+                else:
+                    md.append("\n")
+
+                # Store for summary table
+                reqs = ctrl.get("requirements", {})
+                controls_for_table.append({
+                    "id": c_id,
+                    "initial": reqs.get("initial", False),
+                    "managed": reqs.get("managed", False),
+                    "advanced": reqs.get("advanced", False),
+                    "future_proof": reqs.get("future_proof", False),
+                })
+
+        # Summary Mapping Table at the end
+        if controls_for_table:
+            md.append("## Mapping of the Objectives to the corresponding Sovereignty Maturity Level\n")
+            md.append("| ID | Initial | Managed | Advanced | Future-Proof |")
+            md.append("|:---|:---:|:---:|:---:|:---:|")
+            for c in controls_for_table:
+                init_x = "x" if c["initial"] else ""
+                man_x = "x" if c["managed"] else ""
+                adv_x = "x" if c["advanced"] else ""
+                fp_x = "x" if c["future_proof"] else ""
+                md.append(f"| {c['id']} | {init_x} | {man_x} | {adv_x} | {fp_x} |")
+            md.append("\n")
+
+        content = "\n".join(md)
+
+        if check_only:
+            if not target_file.exists():
+                print(f"❌ Out of sync: {target_file} does not exist.")
+                all_synced = False
+            elif target_file.read_text(encoding="utf-8") != content:
+                print(f"❌ Out of sync: {target_file} differs from master JSON.")
+                all_synced = False
+            else:
+                print(f"✅ In sync: {target_file}")
+        else:
+            target_file.write_text(content, encoding="utf-8")
+            print(f"  ✓ Rendered: {target_file}")
+
+    return all_synced
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files with Mapping Table from master JSON.")
+    parser.add_argument("--input", "-i", default="docs/sml_data.json", help="Path to master sml_data.json")
+    parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory")
+    parser.add_argument("--check", action="store_true", help="Check synchronization without writing")
+    args = parser.parse_args()
+
+    json_path = Path(args.input)
     if not json_path.exists():
-        print(f"❌ Error: Master JSON file not found at: {json_path}")
-        return False
+        if Path("sml_data.json").exists():
+            json_path = Path("sml_data.json")
+        else:
+            print(f"❌ Error: Master JSON not found at '{args.input}'.")
+            sys.exit(1)
 
     print(f"📖 Reading Master JSON from: {json_path}...")
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    target_dir = docs_dir / "dimensions"
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    all_synced = True
-
-    for dim_key, dim_data in data.items():
-        if not isinstance(dim_data, dict):
-            continue
-
-        # Extract dimension identifier (e.g. 'SML 1')
-        dim_prefix_match = re.search(r'(SML\s*\d)', dim_key, re.IGNORECASE)
-        prefix = dim_prefix_match.group(1).upper() if dim_prefix_match else dim_key[:5].strip()
-        filename = DIMENSION_SLUG_MAP.get(prefix, f"{prefix.lower().replace(' ', '-')}.md")
-        target_file = target_dir / filename
-
-        dim_desc = dim_data.get("dimension_desc", "")
-
-        md = []
-        md.append(f"# {dim_key}")
-        md.append("")
-        if dim_desc:
-            md.append(f"*{dim_desc}*")
-            md.append("")
-        md.append("---")
-        md.append("")
-        md.append("## Control Objectives & Controls")
-        md.append("")
-
-        for obj in dim_data.get("objectives", []):
-            obj_id = obj.get("id", "").strip()
-            obj_title = obj.get("title", "").strip()
-            sovereignty_contrib = obj.get("sovereignty_contribution", "").strip()
-
-            obj_name, target_state = format_objective_header(obj_id, obj_title)
-
-            if target_state:
-                md.append(f"### {obj_id}: {obj_name}")
-                md.append(f"**Target State:** {target_state}\n")
-            else:
-                md.append(f"### {obj_id}: {obj_name}\n")
-
-            if sovereignty_contrib:
-                md.append(f"> **Sovereignty Contribution:** {sovereignty_contrib}\n")
-
-            for ctrl in obj.get("controls", []):
-                raw_cid = ctrl.get("id", "")
-                cid, level = parse_control_id_and_level(raw_cid)
-                scope = ctrl.get("control_scope", "All")
-                stype = ctrl.get("service_type", "All")
-                desc = ctrl.get("desc", "").strip()
-                question = ctrl.get("question", "").strip()
-                requirements = ctrl.get("requirements", {})
-
-                md.append(f"* **{cid}** | Level: *{level}* | Scope: *{scope}* | Service Type: *{stype}*  ")
-                md.append(f"  {desc}  ")
-                md.append(f"  * **Audit Question:** {question}")
-                
-                req_badges = format_requirements_badges(requirements)
-                if req_badges:
-                    md.append(f"  * {req_badges}")
-                md.append("")
-
-            md.append("---")
-            md.append("")
-
-        rendered_content = "\n".join(md)
-
-        if check_only:
-            if not target_file.exists():
-                print(f"❌ Missing file: {target_file}")
-                all_synced = False
-            elif target_file.read_text(encoding="utf-8") != rendered_content:
-                print(f"❌ Out of sync: {target_file}")
-                all_synced = False
-            else:
-                print(f"✅ In sync: {target_file}")
-        else:
-            target_file.write_text(rendered_content, encoding="utf-8")
-            print(f"  ✓ Rendered: {target_file}")
-
-    if check_only:
-        if all_synced:
+    success = generate_markdown(data, Path(args.docs_dir), check_only=args.check)
+    if args.check:
+        if success:
             print("🎉 Success: All MkDocs dimension pages match the master JSON!")
-        return all_synced
+            sys.exit(0)
+        else:
+            print("❌ Failure: Documentation is out of sync with JSON.")
+            sys.exit(1)
     else:
-        print(f"\n✨ Generation Complete! All dimension pages synchronized from JSON in '{target_dir}'.")
-        return True
-
-def main():
-    parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files from ES3 sml_data.json.")
-    parser.add_argument("--input", "-i", default="docs/sml_data.json", help="Path to input master sml_data.json")
-    parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory")
-    parser.add_argument("--check", action="store_true", help="Check synchronization without writing files")
-    args = parser.parse_args()
-
-    input_path = Path(args.input)
-    if not input_path.exists():
-        if Path("sml_data.json").exists():
-            input_path = Path("sml_data.json")
-
-    docs_path = Path(args.docs_dir)
-    success = generate_docs(input_path, docs_path, check_only=args.check)
-    if not success:
-        sys.exit(1)
+        print(f"\n✨ Generation Complete! All dimension pages synchronized from JSON in '{args.docs_dir}/dimensions'.")
 
 if __name__ == "__main__":
     main()
