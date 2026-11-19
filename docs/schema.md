@@ -46,7 +46,7 @@
 | **SML 9** | **Artificial Intelligence Sovereignty** | Model lineage, dataset protection, explainability metrics, and human oversight. |
 
 
-Find a Mapping Overview of the Objectives to the corresponding Sovereignty Maturity Level (complete list) [here!](./docs/overview.md)
+Find a Mapping Overview of the Objectives to the corresponding Sovereignty Maturity Level (complete list) [here!](overview.md)
 
 ## Example for an Approved Jurisdictions List (AJL)
 
