@@ -11,10 +11,10 @@
  * Contributors:
  *   Andy Riexinger - initial contribution
  ******************************************************************************* -->
-"""
+ """
 #!/usr/bin/env python3
 """
-ES³ SML Framework — MkDocs Generator from Master JSON (v5 Edition)
+ES³ SML Framework — MkDocs Generator from Master JSON (v7 Edition)
 ==================================================================
 Generates MkDocs documentation pages from the master JSON file (`sml_data.json`).
 Features:
@@ -44,6 +44,22 @@ DIMENSION_SLUGS = {
     "SML 9": "sml9-ai",
 }
 
+COPYRIGHT_HEADER = """<!-- ********************************************************************************
+ * Copyright (c) 2026 Schwarz Digits Cloud GmbH & Co. KG
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License
+ * which is available at https://creativecommons.org/licenses/by-sa/4.0/.
+ *
+ * SPDX-License-Identifier: CC-BY-SA-4.0
+ *
+ * Contributors:
+ *   Andy Riexinger - initial contribution
+ ******************************************************************************* -->"""
+
+SML2_INFO_BOX = """!!! note "Approved Jurisdictions List (AJL)"
+    Please find an example for an Approved Jurisdictions List (AJL) [here](https://es3-sml.github.io/es3-sml/schema/)"""
+
 def clean_id(raw_id: str) -> str:
     m = re.match(r"^(SML\s*\d+\.CO\s*\d+(\.C\s*\d+)?)", raw_id.strip())
     if m:
@@ -66,10 +82,11 @@ def clean_co_title(raw_title: str) -> tuple[str, str]:
         return parts[0].strip(), parts[1].strip()
     return cleaned, ""
 
-def generate_markdown(catalog_data: dict, docs_dir: Path, check_only: bool = False) -> bool:
+def generate_markdown(catalog_data: dict, docs_dir: Path, overview_file: str = "overview.md", check_only: bool = False) -> bool:
     dim_dir = docs_dir / "dimensions"
     dim_dir.mkdir(parents=True, exist_ok=True)
     all_synced = True
+    all_dimensions_data = []
 
     items = catalog_data.items() if isinstance(catalog_data, dict) else enumerate(catalog_data)
 
@@ -92,10 +109,18 @@ def generate_markdown(catalog_data: dict, docs_dir: Path, check_only: bool = Fal
             h1_title = dim_title
 
         md = []
+        md.append(COPYRIGHT_HEADER)
+        md.append("")
         md.append(f"# {h1_title}\n")
         if dim_desc:
             md.append(f"*{dim_desc}*\n")
         md.append("---\n")
+
+        # SML 2 specific Info Box (Admonition)
+        if dim_prefix == "SML 2":
+            md.append(SML2_INFO_BOX)
+            md.append("")
+            md.append("---\n")
 
         objectives = dim_info.get("objectives", dim_info.get("control_objectives", []))
         controls_for_table = []
@@ -181,12 +206,55 @@ def generate_markdown(catalog_data: dict, docs_dir: Path, check_only: bool = Fal
             target_file.write_text(content, encoding="utf-8")
             print(f"  ✓ Rendered: {target_file}")
 
+        all_dimensions_data.append({
+            "title": h1_title,
+            "controls": controls_for_table
+        })
+
+
+    # Generate complete overview page: docs/overview.md
+    if all_dimensions_data:
+        target_overview = docs_dir / overview_file
+        ov_md = [
+            COPYRIGHT_HEADER,
+            "",
+            "# Mapping Overview of the Objectives to the corresponding Sovereignty Maturity Level (complete list)\n",
+            "*Comprehensive overview mapping all controls across all nine dimensions of the ES³ Sovereignty Maturity Level (SML) Framework to their respective maturity levels (Initial, Managed, Advanced, Future-Proof).*\n",
+            "---\n",
+            "| ID | Initial | Managed | Advanced | Future-Proof |",
+            "|:---|:---:|:---:|:---:|:---:|"
+        ]
+        for d in all_dimensions_data:
+            ov_md.append(f"| **{d['title']}** | | | | |")
+            for c in d["controls"]:
+                init_x = "x" if c["initial"] else ""
+                man_x = "x" if c["managed"] else ""
+                adv_x = "x" if c["advanced"] else ""
+                fp_x = "x" if c["future_proof"] else ""
+                ov_md.append(f"| {c['id']} | {init_x} | {man_x} | {adv_x} | {fp_x} |")
+        ov_md.append("\n")
+        ov_content = "\n".join(ov_md)
+
+        if check_only:
+            if not target_overview.exists():
+                print(f"❌ Out of sync: {target_overview} does not exist.")
+                all_synced = False
+            elif target_overview.read_text(encoding="utf-8") != ov_content:
+                print(f"❌ Out of sync: {target_overview} differs from master JSON.")
+                all_synced = False
+            else:
+                print(f"✅ In sync: {target_overview}")
+        else:
+            target_overview.write_text(ov_content, encoding="utf-8")
+            print(f"  ✓ Rendered Complete Overview: {target_overview}")
+
     return all_synced
 
 def main():
     parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files with dividers and Mapping Table from master JSON.")
     parser.add_argument("--input", "-i", default="docs/sml_data.json", help="Path to master sml_data.json")
     parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory")
+    parser.add_argument("--overview-file", "-o", default="overview.md", help="Filename for the complete overview page (relative to docs-dir)")
     parser.add_argument("--check", action="store_true", help="Check synchronization without writing")
     args = parser.parse_args()
 
@@ -202,7 +270,7 @@ def main():
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    success = generate_markdown(data, Path(args.docs_dir), check_only=args.check)
+    success = generate_markdown(data, Path(args.docs_dir), overview_file=args.overview_file, check_only=args.check)
     if args.check:
         if success:
             print("🎉 Success: All MkDocs dimension pages match the master JSON!")
