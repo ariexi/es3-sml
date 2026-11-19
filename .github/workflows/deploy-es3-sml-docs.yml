@@ -8,7 +8,7 @@ on:
 
     paths:
       - 'docs/sml_data.json'
-      - 'docs/generate_docs_from_json.py'
+      - 'generate_docs_from_json.py'
       - 'mkdocs.yml'
       - 'docs/**'
 
