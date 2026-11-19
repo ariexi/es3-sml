@@ -144,10 +144,7 @@ def main():
     # Candidate JSON paths if not explicitly provided
     candidate_paths = [
         args.input,
-        "data/sml_data.json",
-        "sml_data.json",
-        "data/sml_catalog.json",
-        "sml_catalog.json"
+        "docs/sml_data.json"
     ]
     input_file = None
     for p in candidate_paths:

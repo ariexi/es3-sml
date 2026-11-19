@@ -83,7 +83,7 @@ jobs:
 
       - name: Generate Markdown Pages from JSON Master
         run: |
-          python generate_docs_from_json.py --input docs/sml_data.json
+          python generate_docs_from_json.py
           
       - name: Build MkDocs Site
         run: mkdocs build --strict
