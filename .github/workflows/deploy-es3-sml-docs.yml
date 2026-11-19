@@ -3,15 +3,26 @@ name: Deploy ES³ SML Documentation to GitHub Pages
 on:
   push:
     branches:
-      - main # Generate DOcumaentation from main
+      - main # Generate Documentation from main
       - UpdateDocs # Only for Testing
 
+    paths:
+      - 'docs/sml_data.json'
+      - 'docs/generate_docs_from_json.py'
+      - 'mkdocs.yml'
+      - 'docs/**'
+
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'docs/sml_data.json'
+      - 'docs/generate_docs_from_json.py'
+      - 'mkdocs.yml'
+      - 'docs/**'
+  
   workflow_dispatch:
-    inputs:
-      clean_build:
-        required: false
-        default: false
-        type: boolean
 
 # Set permissions for deployment on GitHub Pages
 permissions:
@@ -25,9 +36,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build-and-deploy:
     environment:
-      name: github-pages
+      name: Generate Docs & Deploy MkDocs on github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
@@ -70,8 +81,21 @@ jobs:
           # Räumt temporäre Dateien auf
           rm -rf package mountable.tgz
 
+      - name: Generate Markdown Pages from JSON Master
+        run: |
+          python generate_docs_from_json.py
+          
       - name: Build MkDocs Site
-        run: mkdocs build
+        run: mkdocs build --strict
+
+      - name: Commit Generated Documentation (on Push)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/dimensions/
+          git diff-index --quiet HEAD || git commit -m "docs: auto-generate dimension pages from sml_data.json [skip ci]"
+          git push
 
       - name: Setup Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
