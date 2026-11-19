@@ -14,11 +14,12 @@
 """
 #!/usr/bin/env python3
 """
-ES³ SML Framework — MkDocs Generator from Master JSON (v4 Edition)
+ES³ SML Framework — MkDocs Generator from Master JSON (v5 Edition)
 ==================================================================
 Generates MkDocs documentation pages from the master JSON file (`sml_data.json`).
 Features:
   - Exact formatting matching SDC specifications
+  - Horizontal divider (`---`) at the end of each Control Objective block
   - Automatic generation of the summary mapping table at the end of each dimension
     ("Mapping of the Objectives to the corresponding Sovereignty Maturity Level")
     derived from the `requirements` field of each control.
@@ -149,6 +150,9 @@ def generate_markdown(catalog_data: dict, docs_dir: Path, check_only: bool = Fal
                     "future_proof": reqs.get("future_proof", False),
                 })
 
+            # Trennlinie nach jedem Control Objective Block
+            md.append("---\n")
+
         # Summary Mapping Table at the end
         if controls_for_table:
             md.append("## Mapping of the Objectives to the corresponding Sovereignty Maturity Level\n")
@@ -180,7 +184,7 @@ def generate_markdown(catalog_data: dict, docs_dir: Path, check_only: bool = Fal
     return all_synced
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files with Mapping Table from master JSON.")
+    parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files with dividers and Mapping Table from master JSON.")
     parser.add_argument("--input", "-i", default="docs/sml_data.json", help="Path to master sml_data.json")
     parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory")
     parser.add_argument("--check", action="store_true", help="Check synchronization without writing")
