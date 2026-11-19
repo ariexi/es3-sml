@@ -180,7 +180,7 @@ def generate_docs(json_path: Path, docs_dir: Path, check_only: bool = False) -> 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate MkDocs Markdown files from ES3 sml_data.json.")
-    parser.add_argument("--input", "-i", default="data/sml_data.json", help="Path to input master sml_data.json")
+    parser.add_argument("--input", "-i", default="docs/sml_data.json", help="Path to input master sml_data.json")
     parser.add_argument("--docs-dir", "-d", default="docs", help="Path to MkDocs docs directory")
     parser.add_argument("--check", action="store_true", help="Check synchronization without writing files")
     args = parser.parse_args()
