@@ -26,7 +26,7 @@ on:
 
 # Set permissions for deployment on GitHub Pages
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -44,6 +44,9 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: 
+          token: ${{ secrets.GITHUB\_TOKEN }} 
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
