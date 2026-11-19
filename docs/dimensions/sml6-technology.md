@@ -1,4 +1,4 @@
-# SML 6 Technology Sovereignty
+# SML 6 - Technology Sovereignty
 
 *Technology sovereignty assesses the openness, auditability, and physical or logical layout of the underlying technical stack.*
 

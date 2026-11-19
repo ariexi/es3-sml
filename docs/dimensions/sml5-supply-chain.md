@@ -1,4 +1,4 @@
-# SML 5 Supply Chain Sovereignty
+# SML 5 - Supply Chain Sovereignty
 
 *Supply chain sovereignty measures the geographic composition, component tracking, and systemic resilience of the third-party ecosystem supporting the service.*
 

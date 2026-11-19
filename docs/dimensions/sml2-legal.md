@@ -1,4 +1,4 @@
-# SML 2 Legal and Jurisdictional Sovereignty
+# SML 2 - Legal and Jurisdictional Sovereignty
 
 *Legal and jurisdictional sovereignty evaluates the legal frameworks, geographic processing boundaries, and regulatory environments governing the services.*
 

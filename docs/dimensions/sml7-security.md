@@ -1,4 +1,4 @@
-# SML 7 Security and Compliance Sovereignty
+# SML 7 - Security and Compliance Sovereignty
 
 *Security and compliance sovereignty evaluates the isolation, administrative control, and auditability of security configurations and compliance mechanisms.*
 

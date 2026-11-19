@@ -1,4 +1,4 @@
-# SML 1 Strategic Sovereignty
+# SML 1 - Strategic Sovereignty
 
 *Strategic sovereignty evaluates the corporate governance architecture, ownership dependencies, and long-term continuity planning of the service provider.*
 

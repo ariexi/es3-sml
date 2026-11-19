@@ -1,4 +1,4 @@
-# SML 4 Operational Sovereignty
+# SML 4 - Operational Sovereignty
 
 *Operational sovereignty evaluates the capacity to run, maintain, and support services independently of external or unilateral provider controls.*
 
