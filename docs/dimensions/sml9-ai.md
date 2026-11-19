@@ -1,4 +1,4 @@
-# SML 9 AI Sovereignty
+# SML 9 - AI Sovereignty
 
 *AI sovereignty evaluates the organizational oversight, system clarity, and independent control of artificial intelligence solutions.*
 

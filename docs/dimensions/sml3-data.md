@@ -1,4 +1,4 @@
-# SML 3 Data Sovereignty
+# SML 3 - Data Sovereignty
 
 *Data sovereignty measures the control parameters established over data assets throughout their life cycle.*
 
